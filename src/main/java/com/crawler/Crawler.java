@@ -2,14 +2,19 @@ package com.crawler;
 
 import com.microsoft.playwright.*;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Hello world!
@@ -20,6 +25,8 @@ public final class Crawler {
     private ArrayList<URL> toVisit = new ArrayList<URL>();
     private ArrayList<URL> visited = new ArrayList<URL>();
 
+    private ArrayList<String> stopWords = new ArrayList<String>();
+
     public Crawler(String seed) {
         try {
             this.playwright = Playwright.create();
@@ -28,7 +35,6 @@ public final class Crawler {
         }
         this.browser = playwright.chromium().launch();
         scrapePage(seed);
-
     }
 
     private void scrapePage(String url) {
@@ -52,6 +58,7 @@ public final class Crawler {
                     }
                 }
             }
+            visited.add(currentURL);
         } catch (MalformedURLException e) {
             e.printStackTrace();
         }
@@ -76,15 +83,96 @@ public final class Crawler {
 
     }
 
-    private void findMostImportantWords(Page page) {
-        Locator headings = page.locator("h1");
-        System.out.println(headings.allTextContents());
+    private ArrayList<String> findMostImportantWords(Page page) {
+        Locator body = page.locator("body");
+        FileWriter fw = getFileWriter("./debugging/bag_of_words2.txt");
+        List<String> textContents = body.allInnerTexts();
+        String allText = String.join(" ", textContents);
+
+        loadStopWordsList();
+
+        HashMap<String, Integer> bagOfWords = getBagOfWords(allText);
+        List<Map.Entry<String, Integer>> sortedBagOfWords = sortBagOfWords(bagOfWords);
+
+        for (Map.Entry<String, Integer> term : sortedBagOfWords) {
+            try {
+                fw.write(term.getKey() + "=" + term.getValue() + "\n");
+            } catch (IOException e) {
+            }
+        }
+
+        ArrayList<String> importantWords = new ArrayList<String>();
+        int numberOfImportantWords = (sortedBagOfWords.size() > 10) ? 10 : sortedBagOfWords.size();
+        for (int i = 0; i < numberOfImportantWords; i++) {
+            importantWords.add(sortedBagOfWords.get(i).getKey());
+        }
+        return importantWords;
+    }
+
+    private void loadStopWordsList() {
+        BufferedReader br = getBufferedReader("./res/stop_words.txt");
+
+        String word;
+        try {
+            word = br.readLine();
+            while (word != null) {
+                stopWords.add(word);
+                word = br.readLine();
+            }
+        } catch (IOException e) {
+        }
+    }
+
+    private HashMap<String, Integer> getBagOfWords(String document) {
+        HashMap<String, Integer> bagOfWords = new HashMap<String, Integer>();
+
+        // cleanup string
+        document = document.toLowerCase();
+        document = document.replaceAll("[^A-Za-z\\s]+", " ");
+        String[] words = document.split("\\s+");
+
+        for (String word : words) {
+            if (stopWords.contains(word) || word == "" || word.length() == 1)
+                continue;
+
+            Integer termFrequency = bagOfWords.get(word);
+            if (termFrequency == null) {
+                bagOfWords.put(word, 1);
+            } else {
+                bagOfWords.put(word, termFrequency + 1);
+            }
+        }
+        return bagOfWords;
+    }
+
+    private List<Map.Entry<String, Integer>> sortBagOfWords(HashMap<String, Integer> bagOfWords) {
+        List<Map.Entry<String, Integer>> sortedList = new LinkedList<Map.Entry<String, Integer>>(bagOfWords.entrySet());
+
+        // Sort the list
+        Collections.sort(sortedList, new Comparator<Map.Entry<String, Integer>>() {
+            public int compare(Map.Entry<String, Integer> o1,
+                    Map.Entry<String, Integer> o2) {
+                return Integer.compare(o2.getValue(), o1.getValue());
+            }
+        });
+
+        return sortedList;
     }
 
     private FileWriter getFileWriter(String filepath) {
         File file = new File(filepath);
         try {
             return new FileWriter(file);
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    private BufferedReader getBufferedReader(String filepath) {
+        File file = new File(filepath);
+        try {
+            FileReader fr = new FileReader(file);
+            return new BufferedReader(fr);
         } catch (IOException e) {
             return null;
         }
