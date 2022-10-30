@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -23,20 +24,21 @@ import com.microsoft.playwright.Playwright;
 
 public class Scraper implements Runnable {
     private URL currentURL;
-    private ArrayList<URL> toVisit;
+    private HashSet<URL> children = new HashSet<URL>();
     private Playwright playwright;
     private ArrayList<String> stopWords = new ArrayList<String>();
-    ArrayList<String> importantWords = new ArrayList<String>();
+    private ArrayList<String> importantWords = new ArrayList<String>();
+    private ReportingFunction callbackFunction;
 
-    protected Scraper(URL url, ArrayList<URL> toVisit) {
+    protected Scraper(URL url, ArrayList<String> stopWords, ReportingFunction callback) {
         this.currentURL = url;
-        this.toVisit = toVisit;
+        this.stopWords = stopWords;
+        this.callbackFunction = callback;
         try {
             this.playwright = Playwright.create();
         } catch (Exception e) {
             // TODO: handle exception
         }
-        this.loadStopWordsList();
     }
 
     @Override
@@ -53,11 +55,11 @@ public class Scraper implements Runnable {
             String hyperlink = link.getAttribute("href");
             URL constructedURL = constructURL(hyperlink);
             if (constructedURL != null) {
-                // TODO: synchronize this block
-                toVisit.add(constructedURL);
+                children.add(constructedURL);
             }
         }
-        // visited.add(currentURL);
+
+        this.callbackFunction.reportFromCrawledURL(currentURL, children, importantWords);
     }
 
     private URL constructURL(String hyperlink) {
@@ -80,21 +82,11 @@ public class Scraper implements Runnable {
 
     private ArrayList<String> findMostImportantWords(Page page) {
         Locator body = page.locator("body");
-        // FileWriter fw = getFileWriter("./debugging/bag_of_words2.txt");
         List<String> textContents = body.allInnerTexts();
         String allText = String.join(" ", textContents);
 
-        loadStopWordsList();
-
         HashMap<String, Integer> bagOfWords = this.getBagOfWords(allText);
         List<Map.Entry<String, Integer>> sortedBagOfWords = this.sortBagOfWords(bagOfWords);
-
-        // for (Map.Entry<String, Integer> term : sortedBagOfWords) {
-        // try {
-        // fw.write(term.getKey() + "=" + term.getValue() + "\n");
-        // } catch (IOException e) {
-        // }
-        // }
 
         int numberOfImportantWords = (sortedBagOfWords.size() > 10) ? 10 : sortedBagOfWords.size();
         for (int i = 0; i < numberOfImportantWords; i++) {
@@ -138,20 +130,6 @@ public class Scraper implements Runnable {
         return sortedList;
     }
 
-    private void loadStopWordsList() {
-        BufferedReader br = this.getBufferedReader("./res/stop_words.txt");
-
-        String word;
-        try {
-            word = br.readLine();
-            while (word != null) {
-                this.stopWords.add(word);
-                word = br.readLine();
-            }
-        } catch (IOException e) {
-        }
-    }
-
     private FileWriter getFileWriter(String filepath) {
         File file = new File(filepath);
         try {
@@ -171,14 +149,6 @@ public class Scraper implements Runnable {
         }
     }
 
-    protected void finalize() {
-        try {
-            this.playwright.close();
-        } catch (Exception e) {
-            // TODO: handle exception
-        }
-    }
-
     protected URL getCurrentURL() {
         return this.currentURL;
     }
@@ -187,4 +157,11 @@ public class Scraper implements Runnable {
         return this.importantWords;
     }
 
+    protected void finalize() {
+        try {
+            this.playwright.close();
+        } catch (Exception e) {
+            // TODO: handle exception
+        }
+    }
 }
