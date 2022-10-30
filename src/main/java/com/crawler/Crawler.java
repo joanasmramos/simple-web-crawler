@@ -6,6 +6,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.io.BufferedReader;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -23,7 +24,7 @@ public final class Crawler {
     private HashSet<URL> visited = new HashSet<URL>();
 
     private int maxNumberOfLevels;
-    private boolean timeIsUp = false;
+    private HashMap<Integer, Integer> urlsPerLevel = new HashMap<Integer, Integer>();
 
     private ArrayList<String> stopWords = new ArrayList<String>();
 
@@ -31,6 +32,8 @@ public final class Crawler {
     private FileWriter csvFileWriter;
 
     private ExecutorService executor = Executors.newFixedThreadPool(5);
+
+    private boolean timeIsUp = false;
 
     public Crawler(String seed, int maxNumberOfLevels) {
         this.loadStopWordsList();
@@ -103,11 +106,19 @@ public final class Crawler {
         for (int i = 1; i <= maxNumberOfLevels; i++) {
             final int level = i;
             LinkedList<URL> urls = this.toVisit.get(level);
-            System.out.println("Level size is " + urls.size());
+            urlsPerLevel.put(level, urls.size());
             while (urls.peek() != null) {
                 if (this.timeIsUp) {
+                    this.executor.shutdownNow();
+
                     System.out.println("[INFO] Shutting down...");
-                    executor.shutdownNow();
+                    report();
+                    try {
+                        this.executor.awaitTermination(10, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        this.executor.shutdownNow();
+                        System.exit(0);
+                    }
                     return;
                 }
 
@@ -140,6 +151,17 @@ public final class Crawler {
             System.out.println("[ERROR] Error reading stop words file:");
             e.printStackTrace();
         }
+    }
+
+    private void report() {
+        System.out.println("--- Execution report");
+        for (Integer level : urlsPerLevel.keySet()) {
+            int total = urlsPerLevel.get(level);
+            System.out.println("--- Level " + level + ":");
+            System.out.println("      Total of " + total + " URLs");
+        }
+
+        System.out.print("--- Total URLs visited: " + visited.size());
     }
 
     /**

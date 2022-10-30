@@ -88,8 +88,6 @@ public class Scraper implements Runnable {
 
             return new URL(hyperlink);
         } catch (MalformedURLException e) {
-            System.out.println("[ERROR] Error creating URL:");
-            e.printStackTrace();
             return null;
         }
     }

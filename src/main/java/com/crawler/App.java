@@ -25,13 +25,10 @@ public class App extends TimerTask {
         int maxNumberOfLevels = Integer.parseInt(args[1]);
         int maxTimeInSeconds = Integer.parseInt(args[2]);
 
-        // seed = "https://en.wikipedia.org/wiki/Open-source_intelligence";
-        // maxNumberOfLeves = 5;
-        // maxTimeInSeconds = 300;
         Crawler crawler = new Crawler(seed, maxNumberOfLevels);
-
         Timer timer = new Timer();
         App app = new App(crawler, timer);
+
         // Stop the program after a certain time
         timer.schedule(app, maxTimeInSeconds * 1000);
     }
