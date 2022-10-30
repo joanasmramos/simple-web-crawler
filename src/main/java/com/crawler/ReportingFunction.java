@@ -4,6 +4,9 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashSet;
 
+/**
+ * Functional interface for scraper callback.
+ */
 @FunctionalInterface
 public interface ReportingFunction {
 

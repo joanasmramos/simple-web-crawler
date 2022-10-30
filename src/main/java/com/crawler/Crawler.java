@@ -7,13 +7,16 @@ import java.util.LinkedList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 
+/**
+ * Main thread.
+ * Handles the visited/to visit URLs by launching scrapers and assessing their
+ * results.
+ */
 public final class Crawler {
     private URL seedUrl;
     private HashMap<Integer, LinkedList<URL>> toVisit = new HashMap<Integer, LinkedList<URL>>();
@@ -25,19 +28,19 @@ public final class Crawler {
     private ArrayList<String> stopWords = new ArrayList<String>();
 
     private FileWriter logFileWriter;
-    private FileWriter CSVFileWriter;
+    private FileWriter csvFileWriter;
 
     private ExecutorService executor = Executors.newFixedThreadPool(5);
 
     public Crawler(String seed, int maxNumberOfLevels) {
         this.loadStopWordsList();
-        this.logFileWriter = getFileWriter("./logs/log.txt", true);
-        this.CSVFileWriter = getFileWriter("./logs/log.csv", false);
+        this.logFileWriter = FileUtils.getFileWriter("./logs/log.txt", true);
+        this.csvFileWriter = FileUtils.getFileWriter("./logs/log.csv", false);
         this.maxNumberOfLevels = maxNumberOfLevels;
         try {
             this.seedUrl = new URL(seed);
             Runnable scraper = new Scraper(this.seedUrl, this.stopWords, (url, children, words) -> {
-                getReportFromCrawledURL(url, children, words, 0);
+                getReportFromcrawledUrl(url, children, words, 0);
             });
 
             this.executor.execute(scraper);
@@ -45,10 +48,18 @@ public final class Crawler {
         }
     }
 
-    private void getReportFromCrawledURL(URL crawledURL, HashSet<URL> childrenURLs,
+    /**
+     * Handle results from the scraper for a certain URL.
+     * 
+     * @param crawledUrl         - URL.
+     * @param childrenURLs       - Hyperlinks found on this page.
+     * @param mostImportantWords - Most important words on this page.
+     * @param urlLevel           - Depth of the URL in the crawling tree.
+     */
+    private void getReportFromcrawledUrl(URL crawledUrl, HashSet<URL> childrenURLs,
             ArrayList<String> mostImportantWords, int urlLevel) {
 
-        this.visited.add(crawledURL);
+        this.visited.add(crawledUrl);
 
         int nextLevel = urlLevel + 1;
         LinkedList<URL> nextLevelUrls = this.toVisit.get(nextLevel);
@@ -60,28 +71,34 @@ public final class Crawler {
         nextLevelUrls.addAll(childrenURLs);
         this.toVisit.put(nextLevel, nextLevelUrls);
 
+        // Write to log files
         try {
-            String line = "Crawled URL <" + crawledURL.toExternalForm() + ">, found " + childrenURLs.size()
+            String line = "Crawled URL <" + crawledUrl.toExternalForm() + ">, found " + childrenURLs.size()
                     + " new URLs to crawl and the most important words were [" + String.join(",", mostImportantWords)
                     + "].\n";
             logFileWriter.write(line);
             logFileWriter.flush();
 
-            String csvLine = crawledURL.toExternalForm() + "," + urlLevel + "," + childrenURLs.size() + ","
+            String csvLine = crawledUrl.toExternalForm() + "," + urlLevel + "," + childrenURLs.size() + ","
                     + String.join(";", mostImportantWords) + "\n";
-            CSVFileWriter.write(csvLine);
-            CSVFileWriter.flush();
-            System.out.println("Visited URL " + crawledURL);
+            csvFileWriter.write(csvLine);
+            csvFileWriter.flush();
+            System.out.println("[INFO] Visited URL " + crawledUrl);
         } catch (IOException e) {
-            // TODO
+            System.out.println("[ERROR] Error writing to log files:");
             e.printStackTrace();
         }
 
+        // Launch crawler
         if (urlLevel == 0) {
             this.crawl();
         }
     }
 
+    /**
+     * Crawls hyperlinks in a breadth-first approach (crawling all hyperlinks on the
+     * same level before moving on to the next level).
+     */
     private void crawl() {
         for (int i = 1; i <= maxNumberOfLevels; i++) {
             final int level = i;
@@ -89,7 +106,7 @@ public final class Crawler {
             System.out.println("Level size is " + urls.size());
             while (urls.peek() != null) {
                 if (this.timeIsUp) {
-                    System.out.println("SHUTTING DOWN");
+                    System.out.println("[INFO] Shutting down...");
                     executor.shutdownNow();
                     return;
                 }
@@ -99,14 +116,17 @@ public final class Crawler {
                     continue;
                 }
                 this.executor.submit(new Scraper(nextUrl, this.stopWords, (url, children, words) -> {
-                    getReportFromCrawledURL(url, children, words, level);
+                    getReportFromcrawledUrl(url, children, words, level);
                 }));
             }
         }
     }
 
+    /**
+     * Loads the stop words list.
+     */
     private void loadStopWordsList() {
-        BufferedReader br = this.getBufferedReader("./res/stop_words.txt");
+        BufferedReader br = FileUtils.getBufferedReader("./res/stop_words.txt");
 
         String word;
         try {
@@ -117,36 +137,25 @@ public final class Crawler {
             }
             br.close();
         } catch (IOException e) {
+            System.out.println("[ERROR] Error reading stop words file:");
+            e.printStackTrace();
         }
     }
 
-    private FileWriter getFileWriter(String filepath, boolean appendMode) {
-        File file = new File(filepath);
-        try {
-            return new FileWriter(file, appendMode);
-        } catch (IOException e) {
-            return null;
-        }
-    }
-
-    private BufferedReader getBufferedReader(String filepath) {
-        File file = new File(filepath);
-        try {
-            FileReader fr = new FileReader(file);
-            return new BufferedReader(fr);
-        } catch (IOException e) {
-            return null;
-        }
-    }
-
+    /**
+     * Sets the `timeIsUp` property that is used to stop child threads.
+     */
     protected void stopExecution() {
         this.timeIsUp = true;
     }
 
+    /**
+     * Closes the file writers.
+     */
     @Override
     protected void finalize() throws Throwable {
         super.finalize();
         logFileWriter.close();
-        CSVFileWriter.close();
+        csvFileWriter.close();
     }
 }
