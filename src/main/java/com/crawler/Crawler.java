@@ -37,7 +37,7 @@ public final class Crawler {
 
     public Crawler(String seed, int maxNumberOfLevels) {
         this.loadStopWordsList();
-        this.logFileWriter = FileUtils.getFileWriter("./logs/log.txt", true);
+        this.logFileWriter = FileUtils.getFileWriter("./logs/log.txt", false);
         this.csvFileWriter = FileUtils.getFileWriter("./logs/log.csv", false);
         this.maxNumberOfLevels = maxNumberOfLevels;
         try {
@@ -81,6 +81,10 @@ public final class Crawler {
                     + "].\n";
             logFileWriter.write(line);
             logFileWriter.flush();
+
+            if (urlLevel == 0) {
+                String headerLine = "URL,URL level,Children URLs size,Most important words\n";
+            }
 
             String csvLine = crawledUrl.toExternalForm() + "," + urlLevel + "," + childrenURLs.size() + ","
                     + String.join(";", mostImportantWords) + "\n";
