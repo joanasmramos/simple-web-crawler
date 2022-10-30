@@ -1,7 +1,9 @@
 package com.crawler;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.io.BufferedReader;
@@ -13,50 +15,85 @@ import java.net.MalformedURLException;
 import java.net.URL;
 
 public final class Crawler {
-    private volatile HashSet<URL> toVisit = new HashSet<URL>();
+    private volatile HashMap<Integer, LinkedList<URL>> toVisit = new HashMap<Integer, LinkedList<URL>>();
     private HashSet<URL> visited = new HashSet<URL>();
 
-    private int currentLevel = 0;
     private int MAX_LEVELS = 5;
 
     private ArrayList<String> stopWords = new ArrayList<String>();
 
+    private FileWriter logFileWriter;
+    private FileWriter CSVFileWriter;
+
+    private ExecutorService executor = Executors.newFixedThreadPool(5);
+
     public Crawler(String seed) {
+        this.loadStopWordsList();
+        this.logFileWriter = getFileWriter("./logs/log.txt", true);
+        this.CSVFileWriter = getFileWriter("./logs/log.csv", true);
         try {
-            this.loadStopWordsList();
-
             URL seedURL = new URL(seed);
-
-            ExecutorService executor = Executors.newFixedThreadPool(5);
             Runnable worker = new Scraper(seedURL, this.stopWords, (url, children, words) -> {
-                getReportFromCrawledURL(url, children, words);
+                getReportFromCrawledURL(url, children, words, 0);
             });
-            executor.execute(worker);
 
-            while (!executor.isShutdown()) {
-
-            }
-
-            System.out.println("Finished all threads!\n");
+            this.executor.execute(worker);
 
         } catch (MalformedURLException e) {
         }
     }
 
     private void getReportFromCrawledURL(URL crawledURL, HashSet<URL> childrenURLs,
-            ArrayList<String> mostImportantWords) {
+            ArrayList<String> mostImportantWords, int urlLevel) {
 
-        FileWriter fw = getFileWriter("./logs/log.txt", true);
+        this.visited.add(crawledURL);
+
+        int nextLevel = urlLevel + 1;
+        LinkedList<URL> nextLevelUrls = this.toVisit.get(nextLevel);
+
+        if (nextLevelUrls == null) {
+            nextLevelUrls = new LinkedList<URL>();
+        }
+
+        nextLevelUrls.addAll(childrenURLs);
+        this.toVisit.put(nextLevel, nextLevelUrls);
+
+        if (urlLevel == 0) {
+            this.crawl();
+        }
 
         try {
             String line = "Crawled URL <" + crawledURL.toExternalForm() + ">, found " + childrenURLs.size()
                     + " new URLs to crawl and the most important words were [" + String.join(",", mostImportantWords)
                     + "].\n";
-            fw.write(line);
-            fw.flush();
+            logFileWriter.write(line);
+            logFileWriter.flush();
+
+            String csvLine = crawledURL.toExternalForm() + "," + urlLevel + "," + childrenURLs.size() + ","
+                    + String.join(";", mostImportantWords) + "\n";
+            CSVFileWriter.write(csvLine);
+            CSVFileWriter.flush();
+            System.out.println("Visited URL " + crawledURL);
         } catch (IOException e) {
-            // TODO Auto-generated catch block
+            // TODO
             e.printStackTrace();
+        }
+
+    }
+
+    private void crawl() {
+        for (int i = 1; i <= MAX_LEVELS; i++) {
+            final int level = i;
+            LinkedList<URL> urls = this.toVisit.get(level);
+            while (urls.peek() != null) {
+                URL nextUrl = urls.remove();
+                if (this.visited.contains(nextUrl)) {
+                    continue;
+                }
+                this.executor.submit(new Scraper(nextUrl, this.stopWords, (url, children, words) -> {
+                    getReportFromCrawledURL(url, children, words, level);
+                }));
+            }
         }
     }
 

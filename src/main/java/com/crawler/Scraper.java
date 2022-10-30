@@ -71,7 +71,7 @@ public class Scraper implements Runnable {
                 return new URL("https:" + hyperlink);
             }
             if (hyperlink.startsWith("#")) {
-                return new URL(this.currentURL.toExternalForm() + hyperlink);
+                return null;
             }
             return new URL(this.currentURL.getHost() + hyperlink);
 
@@ -147,14 +147,6 @@ public class Scraper implements Runnable {
         } catch (IOException e) {
             return null;
         }
-    }
-
-    protected URL getCurrentURL() {
-        return this.currentURL;
-    }
-
-    protected ArrayList<String> getImportantWords() {
-        return this.importantWords;
     }
 
     protected void finalize() {
