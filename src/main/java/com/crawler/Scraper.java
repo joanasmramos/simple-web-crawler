@@ -50,7 +50,6 @@ public class Scraper implements Runnable {
         this.findMostImportantWords(page);
 
         List<ElementHandle> links = page.querySelectorAll("a");
-        // FileWriter fw = getFileWriter("./debugging/urls.txt");
         for (ElementHandle link : links) {
             String hyperlink = link.getAttribute("href");
             URL constructedURL = constructURL(hyperlink);
@@ -149,6 +148,7 @@ public class Scraper implements Runnable {
         }
     }
 
+    @Override
     protected void finalize() {
         try {
             this.playwright.close();

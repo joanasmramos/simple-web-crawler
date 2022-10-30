@@ -15,10 +15,12 @@ import java.net.MalformedURLException;
 import java.net.URL;
 
 public final class Crawler {
-    private volatile HashMap<Integer, LinkedList<URL>> toVisit = new HashMap<Integer, LinkedList<URL>>();
+    private URL seedUrl;
+    private HashMap<Integer, LinkedList<URL>> toVisit = new HashMap<Integer, LinkedList<URL>>();
     private HashSet<URL> visited = new HashSet<URL>();
 
     private int MAX_LEVELS = 5;
+    private boolean timeIsUp = false;
 
     private ArrayList<String> stopWords = new ArrayList<String>();
 
@@ -32,13 +34,12 @@ public final class Crawler {
         this.logFileWriter = getFileWriter("./logs/log.txt", true);
         this.CSVFileWriter = getFileWriter("./logs/log.csv", true);
         try {
-            URL seedURL = new URL(seed);
-            Runnable worker = new Scraper(seedURL, this.stopWords, (url, children, words) -> {
+            this.seedUrl = new URL(seed);
+            Runnable worker = new Scraper(this.seedUrl, this.stopWords, (url, children, words) -> {
                 getReportFromCrawledURL(url, children, words, 0);
             });
 
             this.executor.execute(worker);
-
         } catch (MalformedURLException e) {
         }
     }
@@ -86,6 +87,12 @@ public final class Crawler {
             final int level = i;
             LinkedList<URL> urls = this.toVisit.get(level);
             while (urls.peek() != null) {
+                if (this.timeIsUp) {
+                    System.out.println("SHUTTING DOWN");
+                    executor.shutdownNow();
+                    return;
+                }
+
                 URL nextUrl = urls.remove();
                 if (this.visited.contains(nextUrl)) {
                     continue;
@@ -107,6 +114,7 @@ public final class Crawler {
                 this.stopWords.add(word);
                 word = br.readLine();
             }
+            br.close();
         } catch (IOException e) {
         }
     }
@@ -130,9 +138,14 @@ public final class Crawler {
         }
     }
 
-    public static void main(String[] args) {
-        System.out.println("Hello World!");
-        Crawler myCrawler = new Crawler("https://en.wikipedia.org/wiki/Timeline_of_the_far_future");
-        System.out.println("I AM DONE");
+    protected void stopExecution() {
+        this.timeIsUp = true;
+    }
+
+    @Override
+    protected void finalize() throws Throwable {
+        super.finalize();
+        logFileWriter.close();
+        CSVFileWriter.close();
     }
 }
