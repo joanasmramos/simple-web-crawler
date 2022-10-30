@@ -84,6 +84,7 @@ public final class Crawler {
 
             if (urlLevel == 0) {
                 String headerLine = "URL,URL level,Children URLs size,Most important words\n";
+                csvFileWriter.write(headerLine);
             }
 
             String csvLine = crawledUrl.toExternalForm() + "," + urlLevel + "," + childrenURLs.size() + ","
