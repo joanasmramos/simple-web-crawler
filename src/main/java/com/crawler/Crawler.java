@@ -19,7 +19,7 @@ public final class Crawler {
     private HashMap<Integer, LinkedList<URL>> toVisit = new HashMap<Integer, LinkedList<URL>>();
     private HashSet<URL> visited = new HashSet<URL>();
 
-    private int MAX_LEVELS = 5;
+    private int maxNumberOfLevels;
     private boolean timeIsUp = false;
 
     private ArrayList<String> stopWords = new ArrayList<String>();
@@ -29,17 +29,18 @@ public final class Crawler {
 
     private ExecutorService executor = Executors.newFixedThreadPool(5);
 
-    public Crawler(String seed) {
+    public Crawler(String seed, int maxNumberOfLevels) {
         this.loadStopWordsList();
         this.logFileWriter = getFileWriter("./logs/log.txt", true);
-        this.CSVFileWriter = getFileWriter("./logs/log.csv", true);
+        this.CSVFileWriter = getFileWriter("./logs/log.csv", false);
+        this.maxNumberOfLevels = maxNumberOfLevels;
         try {
             this.seedUrl = new URL(seed);
-            Runnable worker = new Scraper(this.seedUrl, this.stopWords, (url, children, words) -> {
+            Runnable scraper = new Scraper(this.seedUrl, this.stopWords, (url, children, words) -> {
                 getReportFromCrawledURL(url, children, words, 0);
             });
 
-            this.executor.execute(worker);
+            this.executor.execute(scraper);
         } catch (MalformedURLException e) {
         }
     }
@@ -59,10 +60,6 @@ public final class Crawler {
         nextLevelUrls.addAll(childrenURLs);
         this.toVisit.put(nextLevel, nextLevelUrls);
 
-        if (urlLevel == 0) {
-            this.crawl();
-        }
-
         try {
             String line = "Crawled URL <" + crawledURL.toExternalForm() + ">, found " + childrenURLs.size()
                     + " new URLs to crawl and the most important words were [" + String.join(",", mostImportantWords)
@@ -80,12 +77,16 @@ public final class Crawler {
             e.printStackTrace();
         }
 
+        if (urlLevel == 0) {
+            this.crawl();
+        }
     }
 
     private void crawl() {
-        for (int i = 1; i <= MAX_LEVELS; i++) {
+        for (int i = 1; i <= maxNumberOfLevels; i++) {
             final int level = i;
             LinkedList<URL> urls = this.toVisit.get(level);
+            System.out.println("Level size is " + urls.size());
             while (urls.peek() != null) {
                 if (this.timeIsUp) {
                     System.out.println("SHUTTING DOWN");

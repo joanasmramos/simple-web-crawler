@@ -21,11 +21,18 @@ public class App extends TimerTask {
 
     public static void main(String[] args) {
         System.out.println("Hello World!");
-        Crawler crawler = new Crawler("https://en.wikipedia.org/wiki/Timeline_of_the_far_future");
+        String seed = args[0];
+        int maxNumberOfLevels = Integer.parseInt(args[1]);
+        int maxTimeInSeconds = Integer.parseInt(args[2]);
+
+        // seed = "https://en.wikipedia.org/wiki/Open-source_intelligence";
+        // maxNumberOfLeves = 5;
+        // maxTimeInSeconds = 300;
+        Crawler crawler = new Crawler(seed, maxNumberOfLevels);
 
         Timer timer = new Timer();
         App app = new App(crawler, timer);
-        // Stop the program after 10 seconds
-        timer.schedule(app, 15000);
+        // Stop the program after a certain time
+        timer.schedule(app, maxTimeInSeconds * 1000);
     }
 }
