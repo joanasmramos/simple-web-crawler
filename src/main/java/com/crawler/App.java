@@ -14,7 +14,7 @@ public class App extends TimerTask {
 
     @Override
     public void run() {
-        System.out.println("INTERRUPTING PROGRAM");
+        System.out.println("[INFO] Maximum execution time reached, interrupting program...");
         crawler.stopExecution();
         timer.cancel();
     }

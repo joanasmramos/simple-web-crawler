@@ -1,10 +1,5 @@
 package com.crawler;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
@@ -86,8 +81,12 @@ public class Scraper implements Runnable {
                 // In this case we don't want to keep the URL, since it points to the same page
                 return null;
             }
-            return new URL(this.currentURL.getHost() + hyperlink);
+            if (hyperlink.startsWith("/")) {
+                // Relative link
+                return new URL("https://" + this.currentURL.getHost() + hyperlink);
+            }
 
+            return new URL(hyperlink);
         } catch (MalformedURLException e) {
             System.out.println("[ERROR] Error creating URL:");
             e.printStackTrace();
